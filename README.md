@@ -5,7 +5,6 @@ Vision2Audio is a web application designed to enhance the lives of visually impa
 
 The application leverages NVIDIA's Riva Automatic Speech Recognition (ASR) to convert spoken questions into text. This text is then fed into the LLaVA (Large Language-and-Vision Assistant) multimodal model using llama.cpp server implementation, which provides comprehensive image description. Finally, NVIDIA's Riva Text-to-Speech (TTS) technology converts the generated text into spoken audio, delivering the answers to the user in an accessible format.
 
-### System architecture
 
 
 ### Usage
@@ -31,7 +30,6 @@ cloudflared tunnel --url http://127.0.0.1:5000
 
 ```
 
-### Demo
 
 ### Acknowledgements
 The implementation of the project relies on:

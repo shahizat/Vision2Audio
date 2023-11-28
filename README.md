@@ -1,7 +1,7 @@
 
 # Vision2Audio - Giving the blind an understanding through AI
 
-### More details can be found here.  [Hackster.io](https://www.hackster.io/shahizat/vision2audio-giving-the-blind-an-understanding-through-ai-33f929)
+### More details can be found here - [Hackster.io](https://www.hackster.io/shahizat/vision2audio-giving-the-blind-an-understanding-through-ai-33f929)
 
 Vision2Audio is a web application designed to enhance the lives of visually impaired and blind individuals by enabling them to capture images, ask questions about them, and receive spoken answers using cutting-edge AI technologies.
 

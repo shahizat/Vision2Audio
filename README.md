@@ -1,33 +1,29 @@
 
-# Vision2Audio - Giving the blind an understanding through Vision Language Model
+# Vision2Audio - Giving the blind an understanding through Google's Gemma 3n multimodel model
 
 Vision2Audio is a web application designed to enhance the lives of visually impaired and blind individuals by enabling them to capture images, ask questions about them, and receive spoken answers using cutting-edge AI technologies.
 
-The application leverages NVIDIA's Riva Automatic Speech Recognition (ASR) to convert spoken questions into text. This text is then fed into the LLaVA (Large Language-and-Vision Assistant) multimodal model using MLC LLM, which provides comprehensive image description. Finally, NVIDIA's Riva Text-to-Speech (TTS) technology converts the generated text into spoken audio, delivering the answers to the user in an audio format via browser.
-
+The application leverages NVIDIA's Riva Automatic Speech Recognition (ASR) to convert spoken questions into text. This text is then fed into vLLM, which serves the Gemma3n model to generate comprehensive image descriptions. Finally, NVIDIA's Riva Text-to-Speech (TTS) technology converts the generated text into spoken audio, delivering the answers to the user in audio format through the browser.
 
 ### Usage
-For simplicity we will assume everything is installed. Start Nvidia Riva server by running the command:
+Start Nvidia Riva server by running the command:
 ```
 bash riva_start.sh
 ```
-Once the Riva server status is running, open another terminal and execute the following command to clone the jetson-containers project
+Once the Riva server status is running, open another terminal and execute the following command to run vLLM instance:
 ```
-git clone https://github.com/dusty-nv/jetson-containers.git
-```
-Then, run the following command inside the container to start local_llm:
-```
-./run.sh $(./autotag local_llm) 
+vllm serve google/gemma-3n-e4b-it \
+  --gpu-memory-utilization 0.7 \
+  --port 9000 \
+  --host 0.0.0.0 \
+  --enforce-eager
 ```
 Keep the server running in the background. Open another terminal and run:
 ```
 python3 -m uvicorn app:app --port 5000 --host 0.0.0.0 --ssl-keyfile ./key.pem --ssl-certfile ./cert.pem
 ```
-Open another terminal and run cloudflared tunnel using the following command:
-```
-cloudflared tunnel --url http://127.0.0.1:5000
-```
+Open another web brower and navigate to https://IP_ADDRESS:5000
 
 ### Acknowledgements
-The implementation of the project relies on the local_llm project by [Dustin Franklin](https://github.com/dusty-nv) from Nvidia.
-
+- The implementation of the project relies on [Google's Gemma3n model](https://ai.google.dev/gemma/docs/gemma-3n).
+- This project has been made possible in part by leveraging the [NVIDIA RIVA SDK](https://developer.nvidia.com/riva?sortBy=developer_learning_library%2Fsort%2Ffeatured_in.riva%3Adesc%2Ctitle%3Aasc&hitsPerPage=6) and the [vLLM](https://github.com/vllm-project/vllm) inference engine. We acknowledge and thank NVIDIA for providing the RIVA SDK, a powerful framework for building speech AI applications, and the vLLM team for their high-performance large language model inference engine.

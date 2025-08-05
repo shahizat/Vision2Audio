@@ -72,7 +72,7 @@ async def describe(request: Request):
         messages = [
             {
                 "role": "system",
-                "content": "You are a helpful assistant. Be concise and accurate. Don't use more that 10 words."
+                "content": "You are a helpful assistant. Be concise and accurate. Don't use more than 10 words."
             },
             {
                 "role": "user",

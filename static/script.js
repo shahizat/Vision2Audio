@@ -1,30 +1,74 @@
-function captureUserMedia(mediaConstraints, successCallback, errorCallback) {
-  navigator.mediaDevices.getUserMedia(mediaConstraints).then(successCallback).catch(errorCallback);
+// Audio Context and Howler.js Initialization
+Howler.autoUnlock = true;
+Howler.usingWebAudio = true;
+Howler.html5PoolSize = 1;
+
+// Global state variables
+let userInteracted = false;
+let mediaRecorder;
+let isRecording = false;
+let currentTTS = null;
+let stream = null;
+let video = document.getElementById('videoElement');
+let facingMode = 'environment';
+
+// Function to handle initial user interaction
+function handleFirstInteraction() {
+  if (!userInteracted) {
+    userInteracted = true;
+    sessionStorage.setItem('userInteracted', 'true');
+    
+    // Play silent audio to unlock audio context
+    const silentAudio = new Howl({
+      src: ['data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU...'],
+      volume: 0,
+      onend: function() {
+        console.log('Audio context unlocked');
+      }
+    });
+    silentAudio.play();
+    
+    // Remove event listeners
+    document.removeEventListener('click', handleFirstInteraction);
+    document.removeEventListener('touchstart', handleFirstInteraction);
+  }
 }
 
-Howler.autoUnlock = false;
+// Check for previous interaction
+userInteracted = sessionStorage.getItem('userInteracted') === 'true';
 
+// Add event listeners for initial interaction
+if (!userInteracted) {
+  document.addEventListener('click', handleFirstInteraction, { once: true });
+  document.addEventListener('touchstart', handleFirstInteraction, { once: true });
+}
+
+// Media capture function
+function captureUserMedia(mediaConstraints, successCallback, errorCallback) {
+  navigator.mediaDevices.getUserMedia(mediaConstraints)
+    .then(successCallback)
+    .catch(errorCallback);
+}
+
+// Media constraints
 var mediaConstraints = {
   audio: true
 };
 
-var mediaRecorder;
-var isRecording = false;
-var currentTTS = null;
-
 // Function to stop current TTS playback
 function stopTTS() {
-  if (currentTTS && !currentTTS.ended) {
-    currentTTS.pause();
-    currentTTS.currentTime = 0;
+  if (currentTTS) {
+    currentTTS.stop();
+    currentTTS = null;
   }
 }
 
-document.querySelector('#start-recording').onclick = function () {
+// Start/stop recording handler
+document.querySelector('#start-recording').onclick = function() {
   if (!isRecording) {
     this.disabled = true;
     isRecording = true;
-    stopTTS(); // Stop TTS playback when recording starts
+    stopTTS();
     captureUserMedia(mediaConstraints, onMediaSuccess, onMediaError);
     const descriptionDiv = document.getElementById('description');
     descriptionDiv.textContent = 'Recording...';
@@ -42,14 +86,12 @@ function onMediaSuccess(stream) {
   audio.play();
   audiosContainer.appendChild(audio);
 
-
-
   mediaRecorder = new MediaStreamRecorder(stream);
   mediaRecorder.stream = stream;
   mediaRecorder.recorderType = StereoAudioRecorder;
   mediaRecorder.mimeType = 'audio/wav';
 
-  mediaRecorder.ondataavailable = function (blob) {
+  mediaRecorder.ondataavailable = function(blob) {
     if (isRecording) {
       var a = document.createElement('a');
       a.target = '_blank';
@@ -63,34 +105,44 @@ function onMediaSuccess(stream) {
   var timeInterval = 5000;
   mediaRecorder.start(parseInt(timeInterval));
 
-  // Stop recording after the specified interval
-  setTimeout(function () {
+  setTimeout(function() {
     isRecording = false;
     mediaRecorder.stop();
     mediaRecorder.stream.stop();
     document.querySelector('#start-recording').disabled = false;
   }, timeInterval);
-
 }
 
 function onMediaError(e) {
   console.error('media error', e);
 }
 
-let video = document.getElementById('videoElement');
-let facingMode = 'environment';
-let stream = null;
-
+// Video functions
 function startVideo() {
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
   }
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode } })
-    .then(function (mediaStream) {
+  
+  const constraints = {
+    video: {
+      facingMode: facingMode,
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    }
+  };
+
+  navigator.mediaDevices.getUserMedia(constraints)
+    .then(function(mediaStream) {
       stream = mediaStream;
       video.srcObject = mediaStream;
-      video.onloadedmetadata = function (e) {
-        video.play();
+      video.playsInline = true;
+      video.setAttribute('playsinline', 'true');
+      video.muted = true;
+      
+      video.onloadedmetadata = function(e) {
+        video.play().catch(err => {
+          console.log('Video play error:', err);
+        });
         if (facingMode === 'user') {
           video.style.transform = 'scaleX(-1)';
         } else {
@@ -98,13 +150,22 @@ function startVideo() {
         }
       };
     })
-    .catch(function (err) { console.log(err.name + ': ' + err.message); });
+    .catch(function(err) {
+      console.log(err.name + ': ' + err.message);
+      if (err.name === 'OverconstrainedError') {
+        constraints.video.width = { ideal: 640 };
+        constraints.video.height = { ideal: 480 };
+        navigator.mediaDevices.getUserMedia(constraints)
+          .then(mediaStream => {
+            stream = mediaStream;
+            video.srcObject = mediaStream;
+            video.play();
+          });
+      }
+    });
 }
 
-
-
-
-
+// Backend communication functions
 function sendAudioToBackend(audioBlob) {
   const descriptionDiv = document.getElementById('description');
   const formData = new FormData();
@@ -122,17 +183,14 @@ function sendAudioToBackend(audioBlob) {
   })
   .then(data => {
     const asrTranscript = data.transcript;
-    console.log('ASR Transcript:', asrTranscript );
+    console.log('ASR Transcript:', asrTranscript);
     triggerDescribeRequest(asrTranscript)
-
-   descriptionDiv.textContent = `ASR Transcript: ${asrTranscript}`;
+    descriptionDiv.textContent = `ASR Transcript: ${asrTranscript}`;
   })
   .catch(error => {
     console.error('Error:', error);
   });
 }
-
-
 
 function triggerDescribeRequest(audioTranscription) {
   let canvas = document.createElement('canvas');
@@ -166,9 +224,7 @@ function triggerDescribeRequest(audioTranscription) {
   let base64ImageContent = dataURL.replace(/^data:image\/(png|jpg);base64,/, '');
 
   const descriptionDiv = document.getElementById('description');
-
   descriptionDiv.textContent = 'Loading...';
-
 
   const requestData = {
     image: base64ImageContent,
@@ -191,9 +247,8 @@ function triggerDescribeRequest(audioTranscription) {
       if (done) {
         if (buffer.length) {
           descriptionDiv.textContent += buffer + ' ';
-          console.log('LLava answer:', descriptionDiv.textContent );
+          console.log('vLLM answer:', descriptionDiv.textContent);
           text2speech(descriptionDiv.textContent);
-    
         }
         return;
       }
@@ -208,6 +263,11 @@ function triggerDescribeRequest(audioTranscription) {
 }
 
 function text2speech(text) {
+  if (!userInteracted) {
+    console.warn('Audio playback blocked - no user interaction yet');
+    return;
+  }
+
   fetch('/tts', {
     method: 'POST',
     headers: {
@@ -217,31 +277,56 @@ function text2speech(text) {
   })
   .then(response => response.blob())
   .then(blob => {
-    // Convert the blob to a URL
     const url = URL.createObjectURL(blob);
 
-    // Create a Howl instance for TTS
+    if (currentTTS) {
+      currentTTS.stop();
+    }
+
     currentTTS = new Howl({
       src: [url],
       html5: true,
-      autoplay: true, // Set autoplay to true
+      format: ['wav', 'mp3'],
+      autoplay: true,
       onend: function() {
-        console.log('TTS playback finished.');
-        currentTTS = null; // Reset currentTTS when audio ends
+        console.log('TTS playback finished');
+        URL.revokeObjectURL(url);
+        currentTTS = null;
+      },
+      onloaderror: function(id, err) {
+        console.error('Howler load error:', err);
       },
       onplayerror: function() {
-        // When playerror occurs, wait for the unlock event and then play audio
         currentTTS.once('unlock', function() {
           currentTTS.play();
         });
       }
     });
 
-    // Trigger audio playback
-    currentTTS.play();
+    setTimeout(() => {
+      currentTTS.play();
+    }, 100);
   })
   .catch(error => console.error('Error:', error));
 }
+
+// Initialize the video when the page loads
 startVideo();
 
-
+// Add accessibility features
+document.addEventListener('DOMContentLoaded', function() {
+  // Add ARIA labels for screen readers
+  const startButton = document.querySelector('#start-recording');
+  startButton.setAttribute('aria-label', 'Start recording button. Press to begin recording audio.');
+  
+  // Add instructions for visually impaired users
+  const instructions = document.createElement('div');
+  instructions.setAttribute('aria-live', 'polite');
+  instructions.textContent = 'Please tap anywhere on the screen to enable audio playback.';
+  document.body.prepend(instructions);
+  
+  // Remove instructions after first interaction
+  document.addEventListener('click', function() {
+    instructions.remove();
+  }, { once: true });
+});
